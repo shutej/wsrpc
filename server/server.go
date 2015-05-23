@@ -17,12 +17,13 @@ func defaultFactory(*websocket.Conn) interface{} {
 
 type server struct {
 	server  *rpcplus.Server
-	factory func(*websocket.Conn) interface{}
+	factory Factory
 }
 
 type Option func(server *server)
+type Factory func(*websocket.Conn) interface{}
 
-func ContextFactory(factory func(*websocket.Conn) interface{}) Option {
+func ContextFactory(factory Factory) Option {
 	return func(self *server) {
 		self.factory = factory
 	}
