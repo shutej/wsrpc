@@ -11,18 +11,18 @@ import (
 	"golang.org/x/net/websocket"
 )
 
-func defaultFactory() interface{} {
+func defaultFactory(*websocket.Conn) interface{} {
 	return nil
 }
 
 type server struct {
 	server  *rpcplus.Server
-	factory func() interface{}
+	factory func(*websocket.Conn) interface{}
 }
 
 type Option func(server *server)
 
-func ContextFactory(factory func() interface{}) Option {
+func ContextFactory(factory func(*websocket.Conn) interface{}) Option {
 	return func(self *server) {
 		self.factory = factory
 	}
@@ -56,7 +56,7 @@ func Handler(options ...Option) http.Handler {
 
 	return websocket.Handler(func(conn *websocket.Conn) {
 		codec := jsonrpc.NewServerCodec(conn)
-		context := self.factory()
+		context := self.factory(conn)
 		self.server.ServeCodecWithContext(codec, context)
 	})
 }
