@@ -1,5 +1,7 @@
-// Package server defines a GopherJS RPC server.  This speaks the Flynn dialect
-// of JSON-RPC over a WebSocket connection to the client.
+// Package server defines a GopherJS RPC server.
+//
+// See [Heroku](http://bit.ly/1As5KrE) for background reading about the
+// authentication strategy.
 package server
 
 import (
@@ -8,56 +10,37 @@ import (
 
 	"github.com/shutej/flynn/pkg/rpcplus"
 	"github.com/shutej/flynn/pkg/rpcplus/jsonrpc"
+	"golang.org/x/net/context"
 	"golang.org/x/net/websocket"
 )
 
-func defaultFactory(*websocket.Conn) interface{} {
-	return nil
+var (
+	background = context.Background()
+	key        = &struct{}{}
+)
+
+// Auth gets the result of auth from ctx.
+func Auth(ctx context.Context) interface{} {
+	return ctx.Value(key)
 }
 
-type server struct {
-	server  *rpcplus.Server
-	factory Factory
-}
-
-type Option func(server *server)
-type Factory func(*websocket.Conn) interface{}
-
-func ContextFactory(factory Factory) Option {
-	return func(self *server) {
-		self.factory = factory
-	}
-}
-
-func Register(rcvr interface{}) Option {
-	return func(self *server) {
-		if err := self.server.Register(rcvr); err != nil {
-			log.Panic(err)
-		}
-	}
-}
-
-func RegisterName(name string, rcvr interface{}) Option {
-	return func(self *server) {
-		if err := self.server.RegisterName(name, rcvr); err != nil {
-			log.Panic(err)
-		}
-	}
-}
-
-func Handler(options ...Option) http.Handler {
-	self := &server{
-		factory: defaultFactory,
-		server:  rpcplus.NewServer(),
-	}
-
-	for _, option := range options {
-		option(self)
-	}
-
+// New creates a new HTTP handler.
+//
+// It receives a frame as authentication, and converts it using the auth
+// function.  Then, it uses the WebSocket connection to speak Flynn JSON-RPC.
+func New(auth func(string) interface{}) http.Handler {
 	return websocket.Handler(func(conn *websocket.Conn) {
 		codec := jsonrpc.NewServerCodec(conn)
-		context := self.factory(conn)
-		self.server.ServeCodecWithContext(codec, context)
+
+		ctx := background
+
+		frame := ""
+		if err := websocket.Message.Receive(conn, &frame); err != nil {
+			log.Printf("wsrpc/server: %v", err)
+		} else {
+			ctx = context.WithValue(ctx, key, auth(frame))
+		}
+
+		rpcplus.DefaultServer.ServeCodecWithContext(codec, ctx)
 	})
 }

@@ -1,5 +1,7 @@
-// Package client defines a GopherJS RPC client.  This speaks the Flynn dialect
-// of JSON-RPC over a WebSocket connection from a web browser.
+// Package client defines a GopherJS RPC client.
+//
+// See [Heroku](http://bit.ly/1As5KrE) for background reading about the
+// authentication strategy.
 package client
 
 import (
@@ -8,15 +10,17 @@ import (
 	"github.com/shutej/flynn/pkg/rpcplus/jsonrpc"
 )
 
-type Client struct {
-	*rpcplus.Client
-}
-
-func New(url string) (Client, error) {
+// New creates a new client.
+//
+// It sends a frame as authentication.  Then, it uses the WebSocket connection
+// to speak Flynn JSON-RPC.
+func New(url, frame string) (*rpcplus.Client, error) {
 	conn, err := websocket.Dial(url)
 	if err != nil {
-		return Client{nil}, err
+		return nil, err
 	}
-	self := Client{rpcplus.NewClientWithCodec(jsonrpc.NewClientCodec(conn))}
-	return self, nil
+	if err := conn.Send(frame); err != nil {
+		return nil, err
+	}
+	return rpcplus.NewClientWithCodec(jsonrpc.NewClientCodec(conn)), nil
 }
