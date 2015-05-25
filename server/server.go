@@ -7,6 +7,7 @@ package server
 import (
 	"log"
 	"net/http"
+	"reflect"
 
 	"github.com/shutej/flynn/pkg/rpcplus"
 	"github.com/shutej/flynn/pkg/rpcplus/jsonrpc"
@@ -22,6 +23,12 @@ var (
 // Auth gets the result of auth from ctx.
 func Auth(ctx context.Context) interface{} {
 	return ctx.Value(key)
+}
+
+func init() {
+	// We just want a bare `context.Context` interface in our code.
+	contextType := reflect.TypeOf((*context.Context)(nil)).Elem()
+	rpcplus.DefaultServer.SetContextType(contextType)
 }
 
 // New creates a new HTTP handler.
